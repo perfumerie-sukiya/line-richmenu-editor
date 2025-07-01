@@ -1,6 +1,9 @@
-import axios, { AxiosError } from "axios";
-import { EditingRichMenuContextType } from "types/RichMenu";
+import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
+
+import type { AxiosError } from "axios";
+import type { EditingRichMenuContextType } from "types/RichMenu";
+
 
 const errorMessages = {
   "NEED_UPLOADING": "リッチメニューのアップロードを先にしてください",
@@ -18,7 +21,7 @@ const toBlob = (base64: string, type: string) => {
   return new Blob([buffer.buffer], { type });
 };
 
-const authHeader = (channelAccessToken: string) => ({ headers: { Authorization: `Bearer ${channelAccessToken}` }});
+const authHeader = (channelAccessToken: string) => ({ headers: { Authorization: `Bearer ${channelAccessToken}` } });
 
 export type APIResponse = { label?: string, endpoint?: string, status: number, result: string, imageSrc?: string };
 export type ParamsValidateResult = { isSucceeded: boolean, messages: string[] };
@@ -53,7 +56,7 @@ export const apiList = new APIList([
     },
     callAPI: async (
       channelAccessToken,
-      { menu, menuImage, setters: { changeRichMenuId }}: EditingRichMenuContextType
+      { menu, menuImage, setters: { changeRichMenuId } }: EditingRichMenuContextType
     ): Promise<APIResponse[]> => {
       const responses: APIResponse[] = [];
       const createRichMenuResponse = await axios.post("/api/line?target=api.line.me/v2/bot/richmenu", menu, authHeader(channelAccessToken)).catch(({ response }: AxiosError<unknown>) => response);
@@ -64,7 +67,7 @@ export const apiList = new APIList([
         const uploadRichMenuImageResponse = await axios.post(
           `/api/line?target=api-data.line.me/v2/bot/richmenu/${createRichMenuResponse.data.richMenuId}/content`,
           toBlob(menuImage.image.src, contentType),
-          { headers: { ...authHeader(channelAccessToken).headers, "Content-Type": contentType }}
+          { headers: { ...authHeader(channelAccessToken).headers, "Content-Type": contentType } }
         ).catch(({ response }: AxiosError<unknown>) => response);
         responses.push({ label: "画像アップロードAPI", endpoint: `https://api-data.line.me/v2/bot/richmenu/${createRichMenuResponse.data.richMenuId}/content`, status: uploadRichMenuImageResponse.status, result: JSON.stringify(uploadRichMenuImageResponse.data) });
       }
@@ -81,6 +84,19 @@ export const apiList = new APIList([
       const responses: APIResponse[] = [];
       const setRichMenuAsDefaultResponse = await axios.post(`/api/line?target=api.line.me/v2/bot/user/all/richmenu/${richMenuId}`, null, authHeader(channelAccessToken)).catch(({ response }: AxiosError<unknown>) => response);
       responses.push({ label: "リッチメニュー設定API", endpoint: `https://api.line.me/v2/bot/user/all/richmenu/${richMenuId}`, status: setRichMenuAsDefaultResponse.status, result: JSON.stringify(setRichMenuAsDefaultResponse.data) });
+      return responses;
+    }
+  },
+  {
+    key: "unsetRichMenuAsDefault",
+    label: "デフォルト指定を解除",
+    description: "リッチメニューを個別に指定していないすべてのユーザーからの表示を解除",
+    endpoints: ["DELETE https://api.line.me/v2/bot/user/all/richmenu"],
+    validateParams: () => ({ isSucceeded: true, messages: [] }),
+    callAPI: async (channelAccessToken) => {
+      const responses: APIResponse[] = [];
+      const unsetRichMenuAsDefaultResponse = await axios.delete(`/api/line?target=api.line.me/v2/bot/user/all/richmenu`, authHeader(channelAccessToken)).catch(({ response }: AxiosError<unknown>) => response);
+      responses.push({ label: "リッチメニュー設定API", endpoint: `https://api.line.me/v2/bot/user/all/richmenu`, status: unsetRichMenuAsDefaultResponse.status, result: JSON.stringify(unsetRichMenuAsDefaultResponse.data) });
       return responses;
     }
   },
@@ -106,6 +122,27 @@ export const apiList = new APIList([
       const responses: APIResponse[] = [];
       const linkRichMenuToUserResponse = await axios.post(`/api/line?target=api.line.me/v2/bot/richmenu/bulk/link`, { richMenuId, userIds: userIds.split("\n") }, authHeader(channelAccessToken)).catch(({ response }: AxiosError<unknown>) => response);
       responses.push({ label: "リッチメニューリンクAPI", endpoint: "https://api.line.me/v2/bot/richmenu/bulk/link", status: linkRichMenuToUserResponse.status, result: JSON.stringify(linkRichMenuToUserResponse.data) });
+      return responses;
+    }
+  },
+  {
+    key: "unlinkRichMenuToUsers",
+    label: "ユーザーとリンク解除",
+    description: "特定のユーザーに表示していたリッチメニューのリンクを解除",
+    endpoints: ["POST https://api.line.me/v2/bot/richmenu/bulk/unlink"],
+    validateParams: ({ userIds }: { userIds: string }) => {
+      const messages = [];
+      let isSucceeded = true;
+      if (!userIds || userIds.length === 0) {
+        isSucceeded = false;
+        messages.push(errorMessages.MISSING_USER_ID);
+      }
+      return { isSucceeded, messages };
+    },
+    callAPI: async (channelAccessToken, { userIds }: { userIds: string }) => {
+      const responses: APIResponse[] = [];
+      const unlinkRichMenuToUserResponse = await axios.post(`/api/line?target=api.line.me/v2/bot/richmenu/bulk/unlink`, { userIds: userIds.split("\n") }, authHeader(channelAccessToken)).catch(({ response }: AxiosError<unknown>) => response);
+      responses.push({ label: "リッチメニューリンクAPI", endpoint: "https://api.line.me/v2/bot/richmenu/bulk/unlink", status: unlinkRichMenuToUserResponse.status, result: JSON.stringify(unlinkRichMenuToUserResponse.data) });
       return responses;
     }
   },
@@ -163,7 +200,7 @@ export const apiList = new APIList([
     validateParams: () => ({ isSucceeded: true, messages: [] }),
     callAPI: async (
       channelAccessToken,
-      { richMenuId, deleteFromLocal, setters: { changeRichMenuId }}: EditingRichMenuContextType & { deleteFromLocal: boolean }
+      { richMenuId, deleteFromLocal, setters: { changeRichMenuId } }: EditingRichMenuContextType & { deleteFromLocal: boolean }
     ): Promise<APIResponse[]> => {
       const responses: APIResponse[] = [];
       if (richMenuId.startsWith("richmenu-")) {
